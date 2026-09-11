@@ -4,6 +4,8 @@
 *.db-wal
 
 # Ignore temperature snapshot file
-temperature_snapshot.json
+runtime/temperature_snapshot.json
 # Ignore log files
 *.log
+
+printed_documents/
