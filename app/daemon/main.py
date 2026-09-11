@@ -26,7 +26,6 @@ IM_WORKFLOW_MESSAGE_PREFIX = "im.workflow"
 QUALITY_CALIBRATION_MESSAGE_PREFIX = "quality.calibration"
 
 
-
 TRANSIENT_INFO_MESSAGE_TTL_SEC = 8.0
 TRANSIENT_WARN_MESSAGE_TTL_SEC = 12.0
 OPERATOR_MESSAGE_CLEANUP_PERIOD_SEC = 1.0
@@ -55,12 +54,12 @@ async def main_async():
     reject_capacity = int(os.getenv("REJECT_BIN_CAPACITY", "50"))
 
     io = make_io()
-    
-    #printer_name = os.getenv("PRINTER", "")
-    #spool_dir = os.getenv("PRINTER_SPOOL_DIR", "/tmp/postamat_print")
-    #use_real = os.getenv("USE_REAL_PRINTER", "0") == "1" or bool(printer_name)
-    #printer = Printer(printer_name=printer_name, spool_dir=spool_dir) if use_real else MockPrinter()
-    
+
+    # printer_name = os.getenv("PRINTER", "")
+    # spool_dir = os.getenv("PRINTER_SPOOL_DIR", "/tmp/postamat_print")
+    # use_real = os.getenv("USE_REAL_PRINTER", "0") == "1" or bool(printer_name)
+    # printer = Printer(printer_name=printer_name, spool_dir=spool_dir) if use_real else MockPrinter()
+
     rtk = make_rtk()
     sup = Supervisor(io=io, rtk=rtk, reject_bin_capacity=reject_capacity)
 
@@ -69,7 +68,7 @@ async def main_async():
         if asyncio.iscoroutine(v):
             return await v
         return v
-    
+
     def _set_message(
         db,
         message: str,
@@ -113,11 +112,7 @@ async def main_async():
         **state,
     ):
         """Публикует краткое подтверждение без изменения производственной логики."""
-        severity_value = (
-            severity.value
-            if hasattr(severity, "value")
-            else str(severity)
-        )
+        severity_value = severity.value if hasattr(severity, "value") else str(severity)
 
         if ttl_sec is None:
             ttl_sec = (
@@ -137,7 +132,9 @@ async def main_async():
             **state,
         )
 
-    def _ui_message(db, message: str, severity: str | Severity = Severity.info.value, **state):
+    def _ui_message(
+        db, message: str, severity: str | Severity = Severity.info.value, **state
+    ):
         """
         Сообщение для интерфейса, которое должно стать видимым сразу,
         даже если дальше внутри async-команды будет sleep/retry.
@@ -164,8 +161,7 @@ async def main_async():
         latest_failed = db.execute(
             select(CommandRow)
             .where(
-                CommandRow.status
-                == CommandStatus.failed.value,
+                CommandRow.status == CommandStatus.failed.value,
             )
             .order_by(CommandRow.id.desc())
             .limit(1)
@@ -175,20 +171,16 @@ async def main_async():
             return False
 
         if successful_command is not None:
-            if (
-                int(successful_command.id) <= int(latest_failed.id)
-                or str(successful_command.type)
-                != str(latest_failed.type)
-            ):
+            if int(successful_command.id) <= int(latest_failed.id) or str(
+                successful_command.type
+            ) != str(latest_failed.type):
                 return False
         else:
             successful_command = db.execute(
                 select(CommandRow)
                 .where(
-                    CommandRow.status
-                    == CommandStatus.done.value,
-                    CommandRow.type
-                    == str(latest_failed.type),
+                    CommandRow.status == CommandStatus.done.value,
+                    CommandRow.type == str(latest_failed.type),
                     CommandRow.id > int(latest_failed.id),
                 )
                 .order_by(CommandRow.id.asc())
@@ -211,7 +203,7 @@ async def main_async():
             return bool(attr() if callable(attr) else attr)
         except Exception:
             return False
-    
+
     IM_RECONNECT_SETTLE_SEC = float(os.getenv("IM_RECONNECT_SETTLE_SEC", "6.0"))
     IM_READY_AT_SETTING = "im_ready_at_ts"
 
@@ -221,7 +213,11 @@ async def main_async():
         except Exception:
             return float(default)
 
-    def _bool_setting(db, name: str, default: bool = False,) -> bool:
+    def _bool_setting(
+        db,
+        name: str,
+        default: bool = False,
+    ) -> bool:
         value = repo.get_setting(db, name, default)
 
         if isinstance(value, bool):
@@ -262,7 +258,7 @@ async def main_async():
             return str(err) if err else ""
         except Exception:
             return ""
-    
+
     def _short_err(e: object) -> str:
         return str(e)[:500]
 
@@ -297,9 +293,7 @@ async def main_async():
             "Layout must be 0, 1, 2 or 3": (
                 "Раскладка должна быть выбрана из вариантов А, Б, В или Г"
             ),
-            "UseAlternateWave must be bool": (
-                "Некорректно задан параметр «Волна»"
-            ),
+            "UseAlternateWave must be bool": ("Некорректно задан параметр «Волна»"),
             "payload.manual должен иметь тип bool": (
                 "Некорректно выбран режим управления РТК"
             ),
@@ -328,10 +322,7 @@ async def main_async():
             raw,
         )
         if unknown_command:
-            return (
-                "Получена неизвестная команда: "
-                f"{unknown_command.group(1)}"
-            )
+            return "Получена неизвестная команда: " f"{unknown_command.group(1)}"
 
         unknown_im_command = re.fullmatch(
             r"unknown IM command:\s*(.+)",
@@ -382,9 +373,7 @@ async def main_async():
         """
         command_type = str(cmd_type or "")
         command_payload = payload or {}
-        purpose = str(
-            command_payload.get("purpose") or ""
-        ).strip().lower()
+        purpose = str(command_payload.get("purpose") or "").strip().lower()
 
         if command_type in {
             CommandType.CHECK_BATCH_EXTRACTION_DOORS.value,
@@ -400,7 +389,6 @@ async def main_async():
             return purpose == "extraction"
 
         return False
-
 
     def _clear_modal_feedback_duplicate(
         db,
@@ -423,19 +411,16 @@ async def main_async():
             return
 
         active = {
-            str(item.get("key") or ""): item
-            for item in repo.list_operator_messages(db)
+            str(item.get("key") or ""): item for item in repo.list_operator_messages(db)
         }
 
         for message_key in ("command.error", "process.notice"):
             current = active.get(message_key)
             if (
                 current is not None
-                and str(current.get("message") or "").strip()
-                in candidates
+                and str(current.get("message") or "").strip() in candidates
             ):
                 repo.clear_operator_message(db, message_key)
-
 
     def _guard_current_operation(
         db,
@@ -452,7 +437,9 @@ async def main_async():
 
         op_id = str(operation_id or "").strip()
         has_payload_context = batch_id is not None or bool(op_id)
-        has_active_context = bool(str(getattr(st, "active_operation_id", "") or "").strip())
+        has_active_context = bool(
+            str(getattr(st, "active_operation_id", "") or "").strip()
+        )
 
         # Ручной/debug-сценарий вне автооперации.
         if not has_payload_context and not has_active_context:
@@ -477,16 +464,21 @@ async def main_async():
                 "payload_operation_id": op_id or None,
                 "active_batch_id": getattr(st, "active_batch_id", None),
                 "active_operation_id": getattr(st, "active_operation_id", None),
-                "active_operation_batch_id": getattr(st, "active_operation_batch_id", None),
+                "active_operation_batch_id": getattr(
+                    st, "active_operation_batch_id", None
+                ),
             },
         )
         return False
 
-
     def _rtk_waiting_for_external_result() -> bool:
         try:
             snap = rtk.snapshot()
-            a2 = str(getattr(snap, "action_r2", "") or getattr(snap, "state", "") or "").strip().lower()
+            a2 = (
+                str(getattr(snap, "action_r2", "") or getattr(snap, "state", "") or "")
+                .strip()
+                .lower()
+            )
             return a2 in {"waitingmmresult", "waitingcalibrationresult"}
         except Exception:
             return False
@@ -494,14 +486,13 @@ async def main_async():
     def _air_pressure_ok_from_snapshot(snap) -> bool:
         if snap is None or not bool(getattr(snap, "connected", False)):
             return True
-    
+
         v = getattr(snap, "air_pressure_ok", True)
-    
+
         if v is None:
             return True
-    
-        return bool(v)
 
+        return bool(v)
 
     # IM OPCUA (второй сервер)
     im_endpoint = os.getenv("OPCUA_ENDPOINT_IM") or os.getenv("IM_ENDPOINT") or ""
@@ -536,7 +527,7 @@ async def main_async():
                 )
             finally:
                 dbx.close()
-    
+
     # RTK connect
     if hasattr(rtk, "connect"):
         try:
@@ -564,7 +555,7 @@ async def main_async():
                 )
             finally:
                 dbx.close()
-    
+
     if im is not None:
         try:
             await im.connect()
@@ -574,7 +565,7 @@ async def main_async():
                 err = _short_err(e)
                 repo.set_setting(dbx, "im_connected", False)
                 repo.set_setting(dbx, "im_error", err)
-                repo.set_setting(dbx, "im_loaded_program", "")                
+                repo.set_setting(dbx, "im_loaded_program", "")
                 _set_message(
                     dbx,
                     f"Микрометр: потеря связи ({err})",
@@ -610,12 +601,9 @@ async def main_async():
             .limit(1)
         ).scalar_one_or_none()
 
-        if (
-            latest_failed is not None
-            and _command_uses_modal_only_feedback(
-                latest_failed.type,
-                latest_failed.payload or {},
-            )
+        if latest_failed is not None and _command_uses_modal_only_feedback(
+            latest_failed.type,
+            latest_failed.payload or {},
         ):
             _clear_modal_feedback_duplicate(
                 db,
@@ -712,10 +700,7 @@ async def main_async():
             None,
         )
 
-        if (
-            current is None
-            or str(current.get("message") or "") != str(error_text)
-        ):
+        if current is None or str(current.get("message") or "") != str(error_text):
             return False
 
         return repo.clear_operator_message(db, "command.error")
@@ -741,11 +726,7 @@ async def main_async():
             return False
 
         st = repo.ensure_state_row(db)
-        return (
-            str(getattr(st, "mode", "") or "")
-            == SystemMode.paused_rejectbin.value
-        )
-
+        return str(getattr(st, "mode", "") or "") == SystemMode.paused_rejectbin.value
 
     equip_prev: dict[str, bool | None] = {
         "postamat": None,
@@ -754,7 +735,6 @@ async def main_async():
     }
 
     equipment_pause_active = False
-
 
     async def _publish_equipment_status(db):
         nonlocal equipment_pause_active
@@ -783,7 +763,9 @@ async def main_async():
 
         repo.set_setting(db, "rtk_connected", bool(rtk_ok))
         repo.set_setting(db, "rtk_error", rtk_err or "")
-        repo.set_setting(db, "air_pressure_ok", bool(_air_pressure_ok_from_snapshot(snap)))
+        repo.set_setting(
+            db, "air_pressure_ok", bool(_air_pressure_ok_from_snapshot(snap))
+        )
 
         labels = {
             "postamat": "Постаматы",
@@ -807,8 +789,7 @@ async def main_async():
         }
 
         active_messages = {
-            str(item.get("key") or ""): item
-            for item in repo.list_operator_messages(db)
+            str(item.get("key") or ""): item for item in repo.list_operator_messages(db)
         }
 
         def _ensure_equipment_message(
@@ -817,9 +798,7 @@ async def main_async():
             severity: str | Severity,
         ) -> None:
             severity_value = (
-                severity.value
-                if hasattr(severity, "value")
-                else str(severity)
+                severity.value if hasattr(severity, "value") else str(severity)
             )
             current = active_messages.get(message_key)
 
@@ -958,21 +937,15 @@ async def main_async():
             saved_equipment_pause = bool(
                 repo.get_setting(db, "equipment_pause_active", False)
             )
-            active_auto_context = (
-                st.mode == SystemMode.auto_running.value
-                or (
-                    str(st.mode or "").startswith("paused")
-                    and (
-                        st.active_batch_id is not None
-                        or bool(getattr(st, "rtk_paused", 0))
-                    )
+            active_auto_context = st.mode == SystemMode.auto_running.value or (
+                str(st.mode or "").startswith("paused")
+                and (
+                    st.active_batch_id is not None or bool(getattr(st, "rtk_paused", 0))
                 )
             )
 
             if requires_equipment_pause and (
-                active_auto_context
-                or equipment_pause_active
-                or saved_equipment_pause
+                active_auto_context or equipment_pause_active or saved_equipment_pause
             ):
                 equipment_pause_active = True
                 repo.set_setting(db, "equipment_pause_active", True)
@@ -1046,12 +1019,8 @@ async def main_async():
             repo.set_setting(db, "equipment_pause_reason", "")
 
             st = repo.ensure_state_row(db)
-            target = str(
-                repo.get_setting(db, "equipment_pause_target_mode", "") or ""
-            )
-            owns_mode = bool(
-                repo.get_setting(db, "equipment_pause_owns_mode", False)
-            )
+            target = str(repo.get_setting(db, "equipment_pause_target_mode", "") or "")
+            owns_mode = bool(repo.get_setting(db, "equipment_pause_owns_mode", False))
             repo.set_setting(db, "equipment_pause_target_mode", "")
             repo.set_setting(db, "equipment_pause_owns_mode", False)
 
@@ -1068,7 +1037,10 @@ async def main_async():
                         severity=Severity.info.value,
                         source="DAEMON",
                         type_=EventType.RTK_COMMAND_SENT.value,
-                        payload={"cmd": "resume", "reason": "equipment_connection_restored"},
+                        payload={
+                            "cmd": "resume",
+                            "reason": "equipment_connection_restored",
+                        },
                     )
 
                 _set_transient_message(
@@ -1078,7 +1050,6 @@ async def main_async():
                     message_key="notice.system",
                     mode=SystemMode.auto_running.value,
                 )
-
 
     async def _start_im_calibration(mode: int, *, batch_id=None, operation_id=None):
         assert im is not None
@@ -1131,13 +1102,18 @@ async def main_async():
                 )
 
                 repo.set_setting(db2, "im_connected", False)
-                repo.set_setting(db2, "im_error", _last_error_attr(im) or "not connected")
+                repo.set_setting(
+                    db2, "im_error", _last_error_attr(im) or "not connected"
+                )
                 repo.add_event(
                     db2,
                     severity=Severity.error.value,
                     source="DAEMON",
                     type_=EventType.ERROR.value,
-                    payload={"where": "IM_CALIBRATE_START", "err": _last_error_attr(im) or "not connected"},
+                    payload={
+                        "where": "IM_CALIBRATE_START",
+                        "err": _last_error_attr(im) or "not connected",
+                    },
                 )
             finally:
                 db2.close()
@@ -1169,12 +1145,16 @@ async def main_async():
                     **state_patch,
                 )
                 repo.set_setting(db2, "im_connected", False)
-                repo.set_setting(db2, "im_error", _last_error_attr(im) or "not connected")
+                repo.set_setting(
+                    db2, "im_error", _last_error_attr(im) or "not connected"
+                )
             finally:
                 db2.close()
             return
 
-        res = await im.wait_calibration_done(timeout_sec=300.0, poll_period_sec=0.2, stable_polls=3)
+        res = await im.wait_calibration_done(
+            timeout_sec=300.0, poll_period_sec=0.2, stable_polls=3
+        )
 
         if res is None:
             db2 = SessionLocal()
@@ -1207,7 +1187,10 @@ async def main_async():
                     severity=Severity.error.value,
                     source="DAEMON",
                     type_=EventType.ERROR.value,
-                    payload={"where": "IM_CALIBRATE_WAIT", "err": "timeout_or_disconnected"},
+                    payload={
+                        "where": "IM_CALIBRATE_WAIT",
+                        "err": "timeout_or_disconnected",
+                    },
                 )
             finally:
                 db2.close()
@@ -1218,7 +1201,7 @@ async def main_async():
             res_code = int(res.get("calibration_result", res.get("result", 0)))
         else:
             res_code = int(res)
-        
+
         db2 = SessionLocal()
         try:
 
@@ -1241,9 +1224,10 @@ async def main_async():
                 )
         finally:
             db2.close()
-    
 
-    async def _start_im_measure_once(product_code: str, *, batch_id=None, operation_id=None):
+    async def _start_im_measure_once(
+        product_code: str, *, batch_id=None, operation_id=None
+    ):
         workflow_message_key = (
             _batch_operator_message_key(
                 IM_WORKFLOW_MESSAGE_PREFIX,
@@ -1286,7 +1270,9 @@ async def main_async():
                     **state_patch,
                 )
                 repo.set_setting(db2, "im_connected", False)
-                repo.set_setting(db2, "im_error", _last_error_attr(im) or "not connected")
+                repo.set_setting(
+                    db2, "im_error", _last_error_attr(im) or "not connected"
+                )
                 repo.add_event(
                     db2,
                     severity=Severity.error.value,
@@ -1327,7 +1313,9 @@ async def main_async():
                     **state_patch,
                 )
                 repo.set_setting(db2, "im_connected", False)
-                repo.set_setting(db2, "im_error", _last_error_attr(im) or "not connected")
+                repo.set_setting(
+                    db2, "im_error", _last_error_attr(im) or "not connected"
+                )
             finally:
                 db2.close()
             return
@@ -1400,7 +1388,6 @@ async def main_async():
         finally:
             db2.close()
 
-
     async def maybe_start_next_auto_batch(db):
         st = repo.ensure_state_row(db)
         if st.mode != SystemMode.auto_running.value:
@@ -1413,7 +1400,11 @@ async def main_async():
             return
 
         snap = rtk.snapshot() if hasattr(rtk, "snapshot") else None
-        if not snap or not getattr(snap, "connected", False) or getattr(snap, "busy", False):
+        if (
+            not snap
+            or not getattr(snap, "connected", False)
+            or getattr(snap, "busy", False)
+        ):
             return
 
         postamat_ok = _connected_attr(io, default=True)
@@ -1436,7 +1427,9 @@ async def main_async():
             if not im_ok:
                 reasons.append("Микрометр")
             elif im_settle_left > 0:
-                reasons.append(f"Микрометр: стабилизация после восстановления ({im_settle_left} сек.)")
+                reasons.append(
+                    f"Микрометр: стабилизация после восстановления ({im_settle_left} сек.)"
+                )
             if not rtk_ok:
                 reasons.append("РТК")
             if not air_pressure_ok:
@@ -1444,7 +1437,8 @@ async def main_async():
 
             _set_message(
                 db,
-                "АВТОЦИКЛ: старт партии отложен - нет готовности оборудования: " + ", ".join(reasons),
+                "АВТОЦИКЛ: старт партии отложен - нет готовности оборудования: "
+                + ", ".join(reasons),
                 Severity.warn if im_settle_left > 0 else Severity.error,
                 message_key="auto.start.blocked",
             )
@@ -1462,7 +1456,7 @@ async def main_async():
         raw_code = data.get("product_code") or data.get("product_name") or ""
         pn_base, pn_spec_from_code = parse_product_name_and_spec(str(raw_code))
         product_spec = int(data.get("product_spec") or pn_spec_from_code or 0)
-        product_code_full = (str(raw_code).strip() or pn_base)
+        product_code_full = str(raw_code).strip() or pn_base
         if product_spec and "-" not in str(raw_code):
             product_code_full = f"{pn_base}-{product_spec:02d}"
         im_code = pn_base if product_spec != 0 else product_code_full
@@ -1477,11 +1471,7 @@ async def main_async():
             layout = 0
 
         if "use_alternate_wave" in data:
-            use_alternate_wave = (
-                data.get(
-                    "use_alternate_wave"
-                ) is True
-            )
+            use_alternate_wave = data.get("use_alternate_wave") is True
         else:
             use_alternate_wave = _bool_setting(
                 db,
@@ -1557,11 +1547,24 @@ async def main_async():
             out_ids = [16]
 
         if (not pn_base) or product_count <= 0 or not in_ids or not out_ids:
-            repo.add_event(db, severity="error", source="DAEMON", type_=EventType.ERROR.value,
-                           payload={"where": "AUTO_START_BATCH", "err": "missing fields", "batch_id": b.id,
-                                    "product_code": product_code_full, "product_count": product_count,
-                                    "in_tare_ids": in_ids, "out_tare_ids": out_ids})
-            repo.set_batch_status(db, b.id, status="blocked", reject_reason="missing_fields_for_start")
+            repo.add_event(
+                db,
+                severity="error",
+                source="DAEMON",
+                type_=EventType.ERROR.value,
+                payload={
+                    "where": "AUTO_START_BATCH",
+                    "err": "missing fields",
+                    "batch_id": b.id,
+                    "product_code": product_code_full,
+                    "product_count": product_count,
+                    "in_tare_ids": in_ids,
+                    "out_tare_ids": out_ids,
+                },
+            )
+            repo.set_batch_status(
+                db, b.id, status="blocked", reject_reason="missing_fields_for_start"
+            )
             _set_message(
                 db,
                 f"Партия {b.id} пропущена: не заполнены обязательные данные для запуска",
@@ -1571,7 +1574,9 @@ async def main_async():
             return
 
         # 1) IM load program
-        ok, err = await handle_im_command(db, CommandType.IM_LOAD_PROGRAM.value, {"product_code": str(im_code)})
+        ok, err = await handle_im_command(
+            db, CommandType.IM_LOAD_PROGRAM.value, {"product_code": str(im_code)}
+        )
         if not ok:
             repo.add_event(
                 db,
@@ -1613,17 +1618,18 @@ async def main_async():
             "InTareIDs": in_ids,
             "OutTareIDs": out_ids,
             "Layout": int(layout),
-            "GlobalMaxTareCount": int(
-                product_rule.global_max_tare_count
-            ),
-            "CurrentMaxTareCount": int(
-                product_rule.current_max_tare_count
-            ),
+            "GlobalMaxTareCount": int(product_rule.global_max_tare_count),
+            "CurrentMaxTareCount": int(product_rule.current_max_tare_count),
             "UseAlternateWave": bool(use_alternate_wave),
         }
         rtk.request("start", start_payload)
-        repo.add_event(db, severity="info", source="DAEMON", type_=EventType.RTK_COMMAND_SENT.value,
-                       payload={"cmd": "start", "payload": start_payload, "batch_id": b.id})
+        repo.add_event(
+            db,
+            severity="info",
+            source="DAEMON",
+            type_=EventType.RTK_COMMAND_SENT.value,
+            payload={"cmd": "start", "payload": start_payload, "batch_id": b.id},
+        )
 
         repo.set_batch_status(db, b.id, status="auto_processing", loaded_at=utcnow())
         repo.clear_operator_message(db, f"batch.start.{int(b.id)}")
@@ -1639,16 +1645,23 @@ async def main_async():
             rtk_defectcount_seen=None,
             rtk_consecutive_defects=0,
         )
-        repo.add_event(db, severity="info", source="DAEMON", type_=EventType.STATE_UPDATED.value,
-                       payload={"active_batch_id": b.id, "active_batch_expected_count": int(product_count)})
-        
+        repo.add_event(
+            db,
+            severity="info",
+            source="DAEMON",
+            type_=EventType.STATE_UPDATED.value,
+            payload={
+                "active_batch_id": b.id,
+                "active_batch_expected_count": int(product_count),
+            },
+        )
 
     async def _load_im_program_until_ok(
         db,
         product_code: str,
         *,
         batch_id=None,
-        operation_id=None,        
+        operation_id=None,
         after_calibration: bool = False,
         phase: str | None = None,
         delay_before_load_sec: float = 0.0,
@@ -1712,14 +1725,14 @@ async def main_async():
                 message_key=workflow_message_key,
             )
             await asyncio.sleep(float(delay_before_load_sec))
-            
+
             if not _guard_current_operation(
                 db,
                 where=f"IM_LOAD_PROGRAM:{phase or '-'}:after_delay",
                 batch_id=batch_id,
                 operation_id=operation_id,
             ):
-                return True, None            
+                return True, None
 
         attempt = 0
 
@@ -1755,11 +1768,11 @@ async def main_async():
                         "product_code": pc,
                         "attempt": int(attempt),
                         "batch_id": batch_id,
-                        "phase": phase,                        
+                        "phase": phase,
                         "err": err,
                     },
                 )
-                db.commit()                
+                db.commit()
                 return False, msg
 
             _ui_message(
@@ -1776,7 +1789,7 @@ async def main_async():
                     batch_id=batch_id,
                     operation_id=operation_id,
                 ):
-                    return True, None                
+                    return True, None
                 ok = await im.load_program(pc)
             except Exception as e:
                 ok = False
@@ -1859,7 +1872,7 @@ async def main_async():
                     "attempt": int(attempt),
                     "after_calibration": bool(after_calibration),
                     "batch_id": batch_id,
-                    "operation_id": operation_id,                    
+                    "operation_id": operation_id,
                     "phase": phase,
                     "next_calib_mode": mode_i,
                 },
@@ -1877,7 +1890,7 @@ async def main_async():
 
                 repo.set_setting(db, "im_loaded_program", pc)
                 repo.set_setting(db, "im_connected", True)
-                repo.set_setting(db, "im_error", "")                
+                repo.set_setting(db, "im_error", "")
 
                 if after_calibration and batch_id:
                     st = repo.ensure_state_row(db)
@@ -1918,7 +1931,7 @@ async def main_async():
                             Severity.info,
                             message_key=workflow_message_key,
                         )
-                        
+
                     await asyncio.sleep(float(settle_after_load_sec))
 
                     if not _guard_current_operation(
@@ -1948,8 +1961,9 @@ async def main_async():
             )
             await asyncio.sleep(3.0)
 
-
-    async def handle_im_command(db, cmd_type: str, payload: dict) -> tuple[bool, str | None]:
+    async def handle_im_command(
+        db, cmd_type: str, payload: dict
+    ) -> tuple[bool, str | None]:
         if im is None:
             return False, "IM not configured (OPCUA_ENDPOINT_IM/IM_ENDPOINT is empty)"
 
@@ -1981,7 +1995,11 @@ async def main_async():
                     severity=Severity.error.value,
                     source="DAEMON",
                     type_=EventType.ERROR.value,
-                    payload={"where": "IM_COMMAND_OFFLINE", "cmd": operation, "err": err},
+                    payload={
+                        "where": "IM_COMMAND_OFFLINE",
+                        "cmd": operation,
+                        "err": err,
+                    },
                 )
                 return False, msg
 
@@ -2041,7 +2059,7 @@ async def main_async():
             batch_id = (payload or {}).get("batch_id")
             operation_id = (payload or {}).get("operation_id")
             phase = (payload or {}).get("phase")
-        
+
             # Не выполняем устаревшую команду от уже завершённой
             # или сменившейся партии.
             if not _guard_current_operation(
@@ -2051,29 +2069,29 @@ async def main_async():
                 operation_id=operation_id,
             ):
                 return True, None
-        
+
             ok_conn, err_conn = await _ensure_im_connected("clear_db")
             if not ok_conn:
                 return False, err_conn
-        
+
             if not im.nodes.clear_db:
                 return False, "IM_NODE_CLEAR_DB is not configured"
-        
+
             im.request_clear_db()
-        
+
             # Такой же bool-импульс, как у measure_start:
             # первый poll записывает True, второй — False.
             await im.poll_once()
             await asyncio.sleep(0.05)
             await im.poll_once()
-        
+
             if not _connected_attr(im, default=False):
                 err = _last_error_attr(im) or "not connected"
                 return False, (
                     "Микрометр: связь потеряна при очистке журнала измерений "
                     f"({err})"
                 )
-        
+
             if not _guard_current_operation(
                 db,
                 where=f"IM_CLEAR_DB:{phase or '-'}:done",
@@ -2081,7 +2099,7 @@ async def main_async():
                 operation_id=operation_id,
             ):
                 return True, None
-        
+
             repo.add_event(
                 db,
                 severity=Severity.info.value,
@@ -2095,7 +2113,7 @@ async def main_async():
                     "phase": phase,
                 },
             )
-        
+
             return True, None
 
         if cmd_type == CommandType.IM_VACUUM_ON.value:
@@ -2109,7 +2127,13 @@ async def main_async():
             if not _connected_attr(im, default=False):
                 return False, "Микрометр: связь потеряна при включении вакуума"
 
-            repo.add_event(db, severity="info", source="DAEMON", type_=EventType.IM_VACUUM_SET.value, payload={"on": True})
+            repo.add_event(
+                db,
+                severity="info",
+                source="DAEMON",
+                type_=EventType.IM_VACUUM_SET.value,
+                payload={"on": True},
+            )
             return True, None
 
         if cmd_type == CommandType.IM_VACUUM_OFF.value:
@@ -2123,7 +2147,13 @@ async def main_async():
             if not _connected_attr(im, default=False):
                 return False, "Микрометр: связь потеряна при выключении вакуума"
 
-            repo.add_event(db, severity="info", source="DAEMON", type_=EventType.IM_VACUUM_SET.value, payload={"on": False})
+            repo.add_event(
+                db,
+                severity="info",
+                source="DAEMON",
+                type_=EventType.IM_VACUUM_SET.value,
+                payload={"on": False},
+            )
             return True, None
 
         if cmd_type == CommandType.IM_LOAD_PROGRAM.value:
@@ -2132,12 +2162,16 @@ async def main_async():
                 return False, "payload.product_code is required"
 
             batch_id = (payload or {}).get("batch_id")
-            operation_id = (payload or {}).get("operation_id")            
+            operation_id = (payload or {}).get("operation_id")
             after_calibration = bool((payload or {}).get("after_calibration"))
             phase = (payload or {}).get("phase")
 
-            delay_before_load_sec = float((payload or {}).get("delay_before_load_sec") or 0.0)
-            settle_after_load_sec = float((payload or {}).get("settle_after_load_sec") or 0.0)
+            delay_before_load_sec = float(
+                (payload or {}).get("delay_before_load_sec") or 0.0
+            )
+            settle_after_load_sec = float(
+                (payload or {}).get("settle_after_load_sec") or 0.0
+            )
 
             next_calib_mode = (payload or {}).get("next_calib_mode")
 
@@ -2149,14 +2183,13 @@ async def main_async():
                 db,
                 str(pc),
                 batch_id=batch_id,
-                operation_id=operation_id,                
+                operation_id=operation_id,
                 after_calibration=after_calibration,
                 phase=phase,
                 delay_before_load_sec=delay_before_load_sec,
                 settle_after_load_sec=settle_after_load_sec,
                 next_calib_mode=next_calib_mode,
             )
-
 
         if cmd_type == CommandType.IM_CALIBRATE.value:
             ok_conn, err_conn = await _ensure_im_connected("im_calibrate")
@@ -2186,19 +2219,26 @@ async def main_async():
 
             op_name = "проверка" if mode == 2 else "калибровка"
 
-            required_program = str((payload or {}).get("required_program") or "").strip()
+            required_program = str(
+                (payload or {}).get("required_program") or ""
+            ).strip()
             if required_program:
-                loaded_im_program = str(repo.get_setting(db, "im_loaded_program", "") or "").strip()
+                loaded_im_program = str(
+                    repo.get_setting(db, "im_loaded_program", "") or ""
+                ).strip()
 
                 if loaded_im_program != required_program:
                     ok_load, err_load = await _load_im_program_until_ok(
                         db,
                         required_program,
                         batch_id=(payload or {}).get("batch_id"),
-                        operation_id=operation_id,                        
+                        operation_id=operation_id,
                         phase="pre_calibration_required",
                         settle_after_load_sec=float(
-                            (payload or {}).get("required_program_settle_after_load_sec") or 6.0
+                            (payload or {}).get(
+                                "required_program_settle_after_load_sec"
+                            )
+                            or 6.0
                         ),
                         next_calib_mode=mode,
                     )
@@ -2240,12 +2280,12 @@ async def main_async():
                     "mode": mode,
                     "operation": op_name,
                     "batch_id": batch_id,
-                    "operation_id": operation_id,                    
+                    "operation_id": operation_id,
                     "reason": (payload or {}).get("reason"),
                 },
             )
             db.commit()
-            
+
             im_tasks["calibrate"] = asyncio.create_task(
                 _start_im_calibration(
                     mode=mode,
@@ -2315,7 +2355,7 @@ async def main_async():
 
             return True, None
 
-        return False, f"unknown IM command: {cmd_type}"    
+        return False, f"unknown IM command: {cmd_type}"
 
     # main loop
     last_operator_message_cleanup_at = 0.0
@@ -2329,8 +2369,13 @@ async def main_async():
                     if exc:
                         dbx = SessionLocal()
                         try:
-                            repo.add_event(dbx, severity="error", source="DAEMON", type_=EventType.ERROR.value,
-                                           payload={"where": f"im_task:{k}", "err": str(exc)})
+                            repo.add_event(
+                                dbx,
+                                severity="error",
+                                source="DAEMON",
+                                type_=EventType.ERROR.value,
+                                payload={"where": f"im_task:{k}", "err": str(exc)},
+                            )
                         finally:
                             dbx.close()
                     im_tasks.pop(k, None)
@@ -2349,8 +2394,7 @@ async def main_async():
                 except Exception:
                     pass
 
-
-            # 2) refresh RTK snapshot + flush queued commands          
+            # 2) refresh RTK snapshot + flush queued commands
             try:
                 if hasattr(rtk, "poll_once"):
                     await _maybe_await(rtk.poll_once())
@@ -2398,10 +2442,11 @@ async def main_async():
                     ok = False
                     err = None
 
-
                     try:
                         if cmd.type in im_command_types:
-                            ok, err = await handle_im_command(db, cmd.type, cmd.payload or {})
+                            ok, err = await handle_im_command(
+                                db, cmd.type, cmd.payload or {}
+                            )
                         else:
                             ok, err = sup.handle_command(
                                 db,
@@ -2428,7 +2473,6 @@ async def main_async():
 
                     repo.finish_command(db, cmd.id, ok=ok, error=err)
 
-
                     if not ok and err:
                         rejectbin_workflow_failure = (
                             _rejectbin_command_uses_workflow_message(
@@ -2444,24 +2488,18 @@ async def main_async():
                         # как command.error ожидал бы следующей успешной
                         # команды того же типа и оставался устаревшим.
                         im_equipment_failure = (
-                            _im_failure_has_dedicated_equipment_message(
-                                cmd.type
-                            )
+                            _im_failure_has_dedicated_equipment_message(cmd.type)
                         )
-                        modal_only_failure = (
-                            _command_uses_modal_only_feedback(
-                                cmd.type,
-                                cmd.payload or {},
-                            )
+                        modal_only_failure = _command_uses_modal_only_feedback(
+                            cmd.type,
+                            cmd.payload or {},
                         )
 
                         if modal_only_failure:
                             try:
-                                operator_error = (
-                                    _operator_command_error_message(
-                                        cmd.type,
-                                        err,
-                                    )
+                                operator_error = _operator_command_error_message(
+                                    cmd.type,
+                                    err,
                                 )
                                 _clear_modal_feedback_duplicate(
                                     db,
@@ -2518,9 +2556,7 @@ async def main_async():
                                             ),
                                             "command_id": cmd.id,
                                             "type": cmd.type,
-                                            "err": _short_err(
-                                                message_exc
-                                            ),
+                                            "err": _short_err(message_exc),
                                         },
                                     )
                                 except Exception:
@@ -2548,14 +2584,10 @@ async def main_async():
                                         source="DAEMON",
                                         type_=EventType.ERROR.value,
                                         payload={
-                                            "where": (
-                                                "COMMAND_ERROR_DUPLICATE_CLEAR"
-                                            ),
+                                            "where": ("COMMAND_ERROR_DUPLICATE_CLEAR"),
                                             "command_id": cmd.id,
                                             "type": cmd.type,
-                                            "err": _short_err(
-                                                message_exc
-                                            ),
+                                            "err": _short_err(message_exc),
                                         },
                                     )
                                 except Exception:
@@ -2704,6 +2736,7 @@ async def main_async():
                 await _maybe_await(rtk.disconnect())
             except Exception:
                 pass
+
 
 def main():
     asyncio.run(main_async())
