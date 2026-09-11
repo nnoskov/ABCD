@@ -1,0 +1,9 @@
+# Ignore database files
+*.db
+*.db-shm
+*.db-wal
+
+# Ignore temperature snapshot file
+temperature_snapshot.json
+# Ignore log files
+*.log
