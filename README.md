@@ -24,28 +24,25 @@
 ## Архитектура
 - **Планировщик** — `app/daemon/scheduler.py` — `asyncio`-бесконечный цикл, который запускает `supervisor.py` для каждого `product` и `event` в очереди.
 
-┌────────────────────────────┐
-│ Firefox kiosk │
-│ http://127.0.0.1:8000 │
-└──────────────┬─────────────┘
-│ HTTP / SSE
-┌──────────────▼─────────────┐
-│ web (uvicorn + FastAPI) │
-│ app/web/main.py │
-└──────────────┬─────────────┘
-│ SQLAlchemy
-┌──────────────▼─────────────┐
-│ SQLite app.db │
-└──────────────▲─────────────┘
-│ SQLAlchemy
-┌──────────────┴─────────────┐
-│ daemon (asyncio) │
-│ app/daemon/main.py │
-│ ├── Supervisor │
-│ ├── IO backend (OPC-UA) │
-│ ├── RTK backend (HTTP) │
-│ └── IM OPC-UA │
-└────────────────────────────┘
+```mermaid
+flowchart TD
+    FF["Firefox kiosk<br/>http://127.0.0.1:8000"]
+    WEB["web (uvicorn + FastAPI)<br/>app/web/main.py"]
+    DB[("SQLite app.db")]
+    DMN["daemon (asyncio)<br/>app/daemon/main.py"]
+    SUP["Supervisor"]
+    IO["IO backend (OPC-UA)"]
+    RTK["RTK backend (HTTP)"]
+    IM["IM OPC-UA"]
+
+    FF -->|HTTP / SSE| WEB
+    WEB -->|SQLAlchemy| DB
+    DMN -->|SQLAlchemy| DB
+    DMN --> SUP
+    SUP --> IO
+    SUP --> RTK
+    SUP --> IM
+```
 
 
 Слои:
