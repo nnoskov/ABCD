@@ -26,14 +26,14 @@
 
 ```mermaid
 flowchart TD
-    FF["Firefox kiosk<br/>http://127.0.0.1:8000"]
+    FF["Firefox kiosk<br/>http://127.0.0.1:8000/api/workplace"]
     WEB["web (uvicorn + FastAPI)<br/>app/web/main.py"]
     DB[("SQLite app.db")]
     DMN["daemon (asyncio)<br/>app/daemon/main.py"]
     SUP["Supervisor"]
-    IO["IO backend (OPC-UA)"]
+    IO["IO backend (OPC-UA) <br/>ОВЕН ПЛК210"]
     RTK["RTK backend (HTTP)"]
-    IM["IM OPC-UA"]
+    IM["IM (OPC-UA)"]
 
     FF -->|HTTP / SSE| WEB
     WEB -->|SQLAlchemy| DB
