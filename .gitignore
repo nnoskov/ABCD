@@ -20,4 +20,6 @@ runtime/temperature_snapshot.json
 *.pyd
 *.py.class
 
-printed_documents/
+# Keep printed_documents folder, ignore its contents
+printed_documents/*
+!printed_documents/.gitkeep
