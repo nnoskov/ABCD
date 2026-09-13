@@ -19,7 +19,15 @@ from sqlalchemy import select, func
 from pydantic import BaseModel, Field, StrictInt
 
 from app.infra.db import SessionLocal
-from app.infra.models import CommandRow, EventRow, SystemStateRow, BatchRow, BatchMeasurementRow, RejectBinItemRow, UserRow
+from app.infra.models import (
+    CommandRow,
+    EventRow,
+    SystemStateRow,
+    BatchRow,
+    BatchMeasurementRow,
+    RejectBinItemRow,
+    UserRow,
+)
 from app.infra import repo
 from app.web.auth import get_current_user_optional, require_admin, require_current_user
 
@@ -31,7 +39,6 @@ from app.common.product_rules import (
     resolve_product_rule,
     uses_special_unloading_cell,
 )
-
 
 router = APIRouter()
 
@@ -106,8 +113,7 @@ OPERATOR_COMMAND_TYPES = frozenset(
 # Все значения enum считаются известными; специальная STOP-команда пока
 # исторически реализована в Supervisor строкой и поэтому добавлена отдельно.
 KNOWN_WEB_COMMAND_TYPES = frozenset(
-    {command.value for command in CommandType}
-    | {ABORT_ACTIVE_BATCH_FOR_EXTRACTION}
+    {command.value for command in CommandType} | {ABORT_ACTIVE_BATCH_FOR_EXTRACTION}
 )
 
 TEMPERATURE_SNAPSHOT_FILE = get_temperature_snapshot_path()
@@ -158,10 +164,7 @@ def _read_temperature_snapshot() -> dict:
         if not math.isfinite(updated_at_ts):
             raise ValueError("invalid updated_at_ts")
 
-        stale = (
-            time.time() - updated_at_ts
-            > TEMPERATURE_SNAPSHOT_STALE_SEC
-        )
+        stale = time.time() - updated_at_ts > TEMPERATURE_SNAPSHOT_STALE_SEC
 
         if stale:
             return _empty_temperature_snapshot()
@@ -191,10 +194,7 @@ def _read_temperature_snapshot() -> dict:
         return {
             "updated_at_ts": updated_at_ts,
             "stale": False,
-            "overall_status": str(
-                data.get("overall_status")
-                or "unknown"
-            ),
+            "overall_status": str(data.get("overall_status") or "unknown"),
             "loading": _sensor("loading"),
             "im": _sensor("im"),
         }
@@ -463,22 +463,19 @@ def _batch_tare_ids(batch: BatchRow, *, side: str) -> list[int]:
 
 def _unloading_cell_is_occupied(db: Session, cell_no: int) -> bool:
     batches = (
-        db.execute(
-            select(BatchRow).where(
-                BatchRow.status.in_(OCCUPIED_BATCH_STATUSES)
-            )
-        )
+        db.execute(select(BatchRow).where(BatchRow.status.in_(OCCUPIED_BATCH_STATUSES)))
         .scalars()
         .all()
     )
 
     return any(
-        int(cell_no) in _batch_tare_ids(batch, side="unloading")
-        for batch in batches
+        int(cell_no) in _batch_tare_ids(batch, side="unloading") for batch in batches
     )
 
 
-def _derive_product_spec(product_code: str | None, product_spec: int | None) -> int | None:
+def _derive_product_spec(
+    product_code: str | None, product_spec: int | None
+) -> int | None:
     if product_spec is not None:
         try:
             return int(product_spec)
@@ -489,6 +486,7 @@ def _derive_product_spec(product_code: str | None, product_spec: int | None) -> 
     pc = str(product_code).strip()
     try:
         from app.daemon.utils import parse_product_name_and_spec
+
         _, spec = parse_product_name_and_spec(pc)
         return int(spec) if spec is not None else None
     except Exception:
@@ -503,7 +501,7 @@ class SettingsPatch(BaseModel):
     reject_bin_capacity: Optional[int] = None
     tick_period: Optional[float] = None
     layout: Optional[StrictInt] = Field(default=None, ge=0, le=3)
-    use_alternate_wave: Optional[bool] = None    
+    use_alternate_wave: Optional[bool] = None
 
     # одноразовый останов после текущей партии
     stop_after_current_batch: Optional[bool] = None
@@ -516,7 +514,7 @@ class SettingsPatch(BaseModel):
         default=None,
         gt=0,
     )
-    
+
     rjb_near_full: Optional[int] = None
     temp_near_critical: Optional[float] = None
 
@@ -532,22 +530,25 @@ class SettingsPatch(BaseModel):
         ge=1,
         le=65535,
     )
-    
+
 
 class BatchCreate(BaseModel):
     """Схема создания партии (паспортная информация хранится в data(JSON))."""
+
     passport_number: str | None = None
     passport_date: str | None = None
 
     product_code: str | None = None
     product_name: str | None = None
-    product_spec: int | None = None  # если не передали - попробуем получить из product_code
+    product_spec: int | None = (
+        None  # если не передали - попробуем получить из product_code
+    )
 
     blank_alloy: str | None = None
     blank_name: str | None = None
     cert_number: str | None = None
     rod_batch_number: str | None = None
-    #blank_number: str | None = None
+    # blank_number: str | None = None
     items_mass: float | None = None
     prod_tsi: str | None = None
     prod_tsb: str | None = None
@@ -557,7 +558,7 @@ class BatchCreate(BaseModel):
     prod_opt2: str | None = None
     prod_opt3: str | None = None
     prod_opt4: str | None = None
-    prod_comment: str | None = None  
+    prod_comment: str | None = None
 
     product_count: int = Field(..., ge=1)
     cell_no: int = Field(..., ge=1)
@@ -602,10 +603,7 @@ def _authorize_web_command(
 
     role = UserRole(str(current_user.role))
 
-    if (
-        role == UserRole.operator
-        and cmd_type not in OPERATOR_COMMAND_TYPES
-    ):
+    if role == UserRole.operator and cmd_type not in OPERATOR_COMMAND_TYPES:
         raise HTTPException(
             status_code=403,
             detail="Команда доступна только администратору.",
@@ -680,17 +678,10 @@ def _batch_out_from_row(batch: BatchRow) -> BatchOut:
         status=batch.status,
         data=data,
         location=location,
-        loaded_at=(
-            None if not batch.loaded_at
-            else batch.loaded_at.isoformat()
-        ),
-        finished_at=(
-            None if not batch.finished_at
-            else batch.finished_at.isoformat()
-        ),
+        loaded_at=(None if not batch.loaded_at else batch.loaded_at.isoformat()),
+        finished_at=(None if not batch.finished_at else batch.finished_at.isoformat()),
         extracted_at=(
-            None if not batch.extracted_at
-            else batch.extracted_at.isoformat()
+            None if not batch.extracted_at else batch.extracted_at.isoformat()
         ),
     )
 
@@ -738,9 +729,7 @@ def get_settings(
     )
 
     try:
-        stop_after_batch_id = int(
-            raw_stop_after_batch_id or 0
-        )
+        stop_after_batch_id = int(raw_stop_after_batch_id or 0)
     except (TypeError, ValueError):
         stop_after_batch_id = 0
 
@@ -763,7 +752,6 @@ def get_settings(
     return {
         "reject_bin_capacity": int(st.reject_bin_capacity or 0),
         "reject_bin_tare_no": reject_bin_tare_no,
-
         "tick_period": s.get("tick_period"),
         "layout": layout,
         "use_alternate_wave": bool(
@@ -784,7 +772,6 @@ def get_settings(
             "temp_near_critical",
             DEFAULT_TEMP_NEAR_CRITICAL,
         ),
-
         "temperature_sensor_loading_min": s.get(
             "temperature_sensor_loading_min",
             DEFAULT_TEMP_LOADING_MIN,
@@ -801,61 +788,29 @@ def get_settings(
             "temperature_sensor_im_max",
             DEFAULT_TEMP_IM_MAX,
         ),
-        "temperature_sensor_loading_value": (
-            temperature_snapshot["loading"]["value"]
-        ),
+        "temperature_sensor_loading_value": (temperature_snapshot["loading"]["value"]),
         "temperature_sensor_loading_status": (
             temperature_snapshot["loading"]["status"]
         ),
-        "temperature_sensor_im_value": (
-            temperature_snapshot["im"]["value"]
-        ),
-        "temperature_sensor_im_status": (
-            temperature_snapshot["im"]["status"]
-        ),
-        "temperature_status": temperature_snapshot[
-            "overall_status"
-        ],
-        "temperature_snapshot_updated_at_ts": (
-            temperature_snapshot["updated_at_ts"]
-        ),
-        "temperature_snapshot_stale": bool(
-            temperature_snapshot["stale"]
-        ),
-
-        "udp_server_ip": str(
-            s.get("udp_server_ip", "") or ""
-        ),
+        "temperature_sensor_im_value": (temperature_snapshot["im"]["value"]),
+        "temperature_sensor_im_status": (temperature_snapshot["im"]["status"]),
+        "temperature_status": temperature_snapshot["overall_status"],
+        "temperature_snapshot_updated_at_ts": (temperature_snapshot["updated_at_ts"]),
+        "temperature_snapshot_stale": bool(temperature_snapshot["stale"]),
+        "udp_server_ip": str(s.get("udp_server_ip", "") or ""),
         "udp_server_port": s.get(
             "udp_server_port",
             None,
         ),
-
-        "air_pressure_ok": bool(
-            s.get("air_pressure_ok", True)
-        ),
-
-        "rtk_connected_r1": bool(
-            s.get("rtk_connected_r1", False)
-        ),
-        "rtk_connected_r2": bool(
-            s.get("rtk_connected_r2", False)
-        ),
-
-        "im_connected": bool(
-            s.get("im_connected", False)
-        ),
-        "im_loaded_program": str(
-            s.get("im_loaded_program", "") or ""
-        ),
-
-        "emergency_active": bool(
-            s.get("emergency_active", False)
-        ),
-        "emergency_sound_muted": bool(
-            s.get("emergency_sound_muted", False)
-        ),
+        "air_pressure_ok": bool(s.get("air_pressure_ok", True)),
+        "rtk_connected_r1": bool(s.get("rtk_connected_r1", False)),
+        "rtk_connected_r2": bool(s.get("rtk_connected_r2", False)),
+        "im_connected": bool(s.get("im_connected", False)),
+        "im_loaded_program": str(s.get("im_loaded_program", "") or ""),
+        "emergency_active": bool(s.get("emergency_active", False)),
+        "emergency_sound_muted": bool(s.get("emergency_sound_muted", False)),
     }
+
 
 @router.put("/settings")
 def patch_settings(
@@ -879,8 +834,7 @@ def patch_settings(
             raise HTTPException(
                 status_code=403,
                 detail=(
-                    "Изменение системных настроек доступно "
-                    "только администратору."
+                    "Изменение системных настроек доступно " "только администратору."
                 ),
             )
 
@@ -905,19 +859,13 @@ def patch_settings(
         if address.is_unspecified:
             raise HTTPException(
                 status_code=422,
-                detail=(
-                    "IP-адрес UDP-сервера не может быть "
-                    "неопределённым адресом"
-                ),
+                detail=("IP-адрес UDP-сервера не может быть " "неопределённым адресом"),
             )
 
         if address.is_multicast:
             raise HTTPException(
                 status_code=422,
-                detail=(
-                    "IP-адрес UDP-сервера не может быть "
-                    "групповым адресом"
-                ),
+                detail=("IP-адрес UDP-сервера не может быть " "групповым адресом"),
             )
 
         return str(address)
@@ -940,10 +888,7 @@ def patch_settings(
         if not 1 <= port <= 65535:
             raise HTTPException(
                 status_code=422,
-                detail=(
-                    "Порт UDP-сервера должен находиться "
-                    "в диапазоне 1..65535"
-                ),
+                detail=("Порт UDP-сервера должен находиться " "в диапазоне 1..65535"),
             )
 
         return port
@@ -1078,12 +1023,11 @@ def patch_settings(
 
     if body.use_alternate_wave is not None:
         value = bool(body.use_alternate_wave)
-        repo.set_setting(db, "use_alternate_wave", value)           
+        repo.set_setting(db, "use_alternate_wave", value)
         patch["use_alternate_wave"] = value
 
     udp_patch_requested = (
-        body.udp_server_ip is not None
-        or body.udp_server_port is not None
+        body.udp_server_ip is not None or body.udp_server_port is not None
     )
 
     if udp_patch_requested:
@@ -1134,16 +1078,10 @@ def patch_settings(
                 int(active_batch_id),
             )
 
-            if (
-                active_batch is None
-                or str(active_batch.status) != "auto_processing"
-            ):
+            if active_batch is None or str(active_batch.status) != "auto_processing":
                 raise HTTPException(
                     status_code=409,
-                    detail=(
-                        "Текущая партия уже не находится "
-                        "в обработке"
-                    ),
+                    detail=("Текущая партия уже не находится " "в обработке"),
                 )
 
             repo.set_setting(
@@ -1188,7 +1126,6 @@ def patch_settings(
         )
         patch["consecutive_rejects_threshold"] = threshold
 
-
     if body.rjb_near_full is not None:
         u = int(body.rjb_near_full)
         repo.set_setting(db, "rjb_near_full", u)
@@ -1198,7 +1135,6 @@ def patch_settings(
         v = float(body.temp_near_critical)
         repo.set_setting(db, "temp_near_critical", v)
         patch["temp_near_critical"] = v
-
 
     if body.temperature_sensor_loading_min is not None:
         v = float(body.temperature_sensor_loading_min)
@@ -1217,9 +1153,10 @@ def patch_settings(
 
     if body.temperature_sensor_im_max is not None:
         v = float(body.temperature_sensor_im_max)
-        repo.set_setting(db, "temperature_sensor_im_max", float(body.temperature_sensor_im_max))
+        repo.set_setting(
+            db, "temperature_sensor_im_max", float(body.temperature_sensor_im_max)
+        )
         patch["temperature_sensor_im_max"] = v
-
 
     repo.add_user_audit_event(
         db,
@@ -1240,11 +1177,7 @@ def list_batches(
     db: Session = Depends(get_db),
 ):
     rows = (
-        db.execute(
-            select(BatchRow)
-            .order_by(BatchRow.id.desc())
-            .limit(int(limit))
-        )
+        db.execute(select(BatchRow).order_by(BatchRow.id.desc()).limit(int(limit)))
         .scalars()
         .all()
     )
@@ -1372,15 +1305,10 @@ def create_batch(
 
     loading_cell_no = int(body.cell_no)
     unloading_cell_no = int(
-        SPECIAL_UNLOADING_CELL
-        if is_special_product
-        else loading_cell_no
+        SPECIAL_UNLOADING_CELL if is_special_product else loading_cell_no
     )
 
-    if (
-        is_special_product
-        and _unloading_cell_is_occupied(db, SPECIAL_UNLOADING_CELL)
-    ):
+    if is_special_product and _unloading_cell_is_occupied(db, SPECIAL_UNLOADING_CELL):
         raise HTTPException(
             status_code=409,
             detail="Невозможно создать партию, ячейка 16 уже занята",
@@ -1390,11 +1318,9 @@ def create_batch(
         # паспорт и введённые оператором данные партии
         "passport_number": passport_number,
         "passport_date": passport_date,
-
         "product_code": product_code,
         "product_name": product_name,
         "product_spec": int(product_rule.product_spec),
-
         "blank_alloy": blank_alloy,
         "blank_name": blank_name,
         "cert_number": cert_number,
@@ -1409,20 +1335,16 @@ def create_batch(
         "prod_opt3": body.prod_opt3,
         "prod_opt4": body.prod_opt4,
         "prod_comment": body.prod_comment,
-
         "product_count": int(body.product_count),
-
         # счётчики измерений
         "measured_good": 0,
         "measured_bad": 0,
         "measured_qty": 0,
         "ok_qty": 0,
         "nok_qty": 0,
-
         # Загрузка и выгрузка теперь хранятся независимо.
         "in_tare_ids": [int(loading_cell_no)],
         "out_tare_ids": [int(unloading_cell_no)],
-
         # Партия может стать loaded только после того,
         # как supervisor действительно увидел обе двери
         # открытыми, а затем закрытыми.
@@ -1631,9 +1553,12 @@ def get_state(db: Session = Depends(get_db)):
         active_operation_id=getattr(row, "active_operation_id", None),
         active_operation_batch_id=getattr(row, "active_operation_batch_id", None),
         active_operation_phase=getattr(row, "active_operation_phase", None),
-        active_operation_started_at=getattr(row, "active_operation_started_at", None),        
+        active_operation_started_at=getattr(row, "active_operation_started_at", None),
         message=row.message,
-        message_severity=str(repo.get_setting(db, "message_severity", Severity.info.value) or Severity.info.value),
+        message_severity=str(
+            repo.get_setting(db, "message_severity", Severity.info.value)
+            or Severity.info.value
+        ),
         operator_messages=operator_messages,
         trash_present=bool(row.trash_present),
         air_pressure_ok=bool(repo.get_setting(db, "air_pressure_ok", True)),
@@ -1643,9 +1568,11 @@ def get_state(db: Session = Depends(get_db)):
         rtk_action_r1=row.rtk_action_r1,
         rtk_action_r2=row.rtk_action_r2,
         rtk_error=row.rtk_error,
-        rtk_manual_mode=bool(repo.get_setting(db, "rtk_manual_mode", False)),        
-        need_cycle_on=bool(repo.get_setting(db, "rtk_need_cycle_on", False)),        
-        pending_mm_result=(None if row.pending_mm_result is None else bool(row.pending_mm_result)),
+        rtk_manual_mode=bool(repo.get_setting(db, "rtk_manual_mode", False)),
+        need_cycle_on=bool(repo.get_setting(db, "rtk_need_cycle_on", False)),
+        pending_mm_result=(
+            None if row.pending_mm_result is None else bool(row.pending_mm_result)
+        ),
         mm_result_inflight=bool(row.mm_result_inflight),
         pending_calib_result=row.pending_calib_result,
         calib_result_inflight=bool(row.calib_result_inflight),
@@ -1676,15 +1603,11 @@ def get_reject_bin_replacement_status(
         tare_no = 0
 
     tare_no_valid = 1 <= tare_no <= 10
-    replacement_active = (
-        str(st.mode) == "paused_rejectbin"
-    )
+    replacement_active = str(st.mode) == "paused_rejectbin"
 
     return {
         "replacement_active": replacement_active,
-        "tare_no_required": (
-            replacement_active and not tare_no_valid
-        ),
+        "tare_no_required": (replacement_active and not tare_no_valid),
         "tare_no": tare_no if tare_no_valid else None,
     }
 
@@ -1713,13 +1636,7 @@ def event_history(
         query = query.where(EventRow.id < int(before_id))
 
     rows = (
-        db.execute(
-            query
-            .order_by(EventRow.id.desc())
-            .limit(int(limit))
-        )
-        .scalars()
-        .all()
+        db.execute(query.order_by(EventRow.id.desc()).limit(int(limit))).scalars().all()
     )
 
     # UI отображает журнал в прямом хронологическом порядке.
@@ -1738,6 +1655,7 @@ def sse_events(
     При реконнекте браузер передаёт Last-Event-ID, поэтому пропущенные
     live-события будут дочитаны без повторной выгрузки всей истории.
     """
+
     async def gen():
         last_hdr = request.headers.get("Last-Event-ID")
         last_from_hdr = None
@@ -1759,10 +1677,7 @@ def sse_events(
             db = SessionLocal()
             try:
                 last = int(
-                    db.execute(
-                        select(func.max(EventRow.id))
-                    ).scalar_one_or_none()
-                    or 0
+                    db.execute(select(func.max(EventRow.id))).scalar_one_or_none() or 0
                 )
             finally:
                 db.close()
@@ -1793,9 +1708,7 @@ def sse_events(
 
             if rows:
                 for ev in rows:
-                    data = _event_out_from_row(ev).model_dump(
-                        mode="json"
-                    )
+                    data = _event_out_from_row(ev).model_dump(mode="json")
 
                     last = int(ev.id)
                     last_send = time.monotonic()
@@ -1835,8 +1748,7 @@ def login_page(
     if current_user is not None:
         return RedirectResponse(url="/api/workplace", status_code=303)
 
-    return HTMLResponse(
-        r"""
+    return HTMLResponse(r"""
 <!doctype html>
 <html lang="ru">
 <head>
@@ -2092,8 +2004,7 @@ def login_page(
 </script>
 </body>
 </html>
-        """.strip()
-    )
+        """.strip())
 
 
 @router.get("/workplace", response_class=HTMLResponse)
@@ -2103,8 +2014,7 @@ def workplace(
     if current_user is None:
         return RedirectResponse(url="/api/login", status_code=303)
 
-    return HTMLResponse(
-        r"""
+    return HTMLResponse(r"""
 <!doctype html>
 <html>
 <head>
@@ -6383,8 +6293,7 @@ function startSse(){
 
 </body>
 </html>
-        """.strip()
-    )
+        """.strip())
 
 
 @router.get("/ui", response_class=HTMLResponse)
@@ -6947,7 +6856,7 @@ def debug_ui(
               inputmode=\"text\"
               autocomplete=\"off\"
               spellcheck=\"false\"
-              placeholder=\"192.168.1.100\"
+
             />
           </label>
 
